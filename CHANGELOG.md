@@ -2,6 +2,24 @@
 
 All notable changes to OVFX are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) at the spec level.
 
+## [0.5.0] — unreleased (draft)
+
+Purely additive minor bump. Every 0.4.0 document is a valid 0.5.0 document after bumping `ovfxVersion`. Motivated by phone-in-headset perimetry (visualfieldcheck.com): its exports carried a screen block inside a `vr` setup, lens fields, and per-point fields for passes with the fixation moved, none of which 0.4.0 allowed, so no such export validated.
+
+### Added
+
+- `calibration.setup.screen` is allowed next to `calibration.setup.vr`, for a phone held in a passive headset (§3.4.4). It stays forbidden next to `bowl` and `other`.
+- `calibration.setup.vr.headsetId`, `maxFieldHalfDeg`, `lensSeparationPx`, `lensCenterYOffsetPx`, `opticsSource` (`measured` / `preset-known` / `preset-generic`), `measuredFocalMm`, `blindspotSamples` (optional) — phone-in-headset geometry and where its optics came from.
+- `points[].extendedPass` (optional boolean) — the point was recorded with the fixation target moved towards an edge; its coordinates are measured from where the eye was looking (§3.6b).
+- `points[].deviceMeridianDeg` / `deviceEccentricityDeg` (optional, as a pair) — where on the device the stimulus was at the response, measured from the usual fixation place. Lets a consumer tell a part of the device that is hard to see (a lens rim) from a defect in the eye.
+- `points[].startEccentricityDeg` (optional) — kinetic: where the stimulus started moving. With `repeat: true` it marks a re-check shown inside a stretch the test swept without a response (§3.6c).
+- Example `examples/vr-phone-headset.ovfx.json`; every example bumped to 0.5.0.
+- Validator registry includes the 0.5.0 schema and defaults to it; unit tests for every new positive and negative rule, and a regression test that 0.4.0 documents still validate under 0.4.0.
+
+### Migration from 0.4.0
+
+Mechanical rewrite: bump `ovfxVersion` from `"0.4.0"` to `"0.5.0"`. Every new field is optional.
+
 ## [0.4.0] — 2026-04-17
 
 Purely additive minor bump. Every 0.3.0 document is a valid 0.4.0 document after bumping `ovfxVersion`. Motivated by cross-device comparability: `sensitivityDb` and response-time measurements are only portable when the producing screen's luminance and the stimulus presentation timing are recorded. Inspired by the parameter set used by Specvis-Desktop and similar screen-based perimetry tools.

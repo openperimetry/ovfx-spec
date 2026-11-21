@@ -14,10 +14,10 @@ import { validateDocument, loadSchemaFor } from './index.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const EXAMPLES_DIR = resolve(__dirname, '..', '..', 'examples')
 
-/** Structural minimum of a valid v0.4.0 document, used as a base for tests. */
+/** Structural minimum of a valid v0.5.0 document, used as a base for tests. */
 function baseDoc() {
   return {
-    ovfxVersion: '0.4.0',
+    ovfxVersion: '0.5.0',
     id: 'test-0001',
     createdAt: '2026-04-15T10:00:00Z',
     test: { type: 'kinetic', eye: 'right' },
@@ -216,6 +216,8 @@ test('ovfxVersion format is enforced per major.minor schema', async () => {
 })
 
 test('loadSchemaFor selects the right schema for each major.minor', async () => {
+  const s5 = await loadSchemaFor('0.5.0')
+  assert.ok(s5.endsWith('v0.5.0/ovfx.schema.json'))
   const s4 = await loadSchemaFor('0.4.0')
   assert.ok(s4.endsWith('v0.4.0/ovfx.schema.json'))
   const s3 = await loadSchemaFor('0.3.0')
@@ -225,7 +227,99 @@ test('loadSchemaFor selects the right schema for each major.minor', async () => 
   const s1 = await loadSchemaFor('0.1.0')
   assert.ok(s1.endsWith('v0.1.0/ovfx.schema.json'))
   const fallback = await loadSchemaFor('9.9.9')
-  assert.ok(fallback.endsWith('v0.4.0/ovfx.schema.json'), 'unknown major should fall back to default')
+  assert.ok(fallback.endsWith('v0.5.0/ovfx.schema.json'), 'unknown major should fall back to default')
+})
+
+/** A phone-in-headset setup: a `vr` block with the phone's `screen` block. */
+function phoneHeadsetDoc() {
+  const doc = baseDoc()
+  doc.calibration.setup = {
+    type: 'vr',
+    screen: {
+      viewingDistanceCm: 4.9,
+      pixelsPerDegree: 4.876,
+      screenWidthPx: 874,
+      screenHeightPx: 402,
+      fixationOffsetPx: 177,
+      maxEccentricityDeg: 47,
+    },
+    vr: {
+      maxEccentricityDeg: 47,
+      headsetId: 'shinecon-g04',
+      pixelsPerDegree: 4.876,
+      maxFieldHalfDeg: 47.5,
+      lensSeparationPx: 353,
+      lensCenterYOffsetPx: 0,
+      opticsSource: 'measured',
+      measuredFocalMm: 49,
+      blindspotSamples: [{ vanishPx: 60, reappearPx: 95, assumedEccentricityDeg: 15, direction: 'outward' }],
+    },
+  }
+  return doc
+}
+
+test('v0.5.0 accepts a phone-in-headset setup: vr with a screen block and the lens fields', async () => {
+  const { valid, errors } = await validateDocument(phoneHeadsetDoc())
+  assert.equal(valid, true, JSON.stringify(errors))
+})
+
+test('v0.5.0 still rejects a vr setup with a bowl block', async () => {
+  const doc = phoneHeadsetDoc()
+  doc.calibration.setup.bowl = { maxEccentricityDeg: 90 }
+  const { valid } = await validateDocument(doc)
+  assert.equal(valid, false)
+})
+
+test('v0.5.0 rejects an unknown opticsSource and an unknown vr field', async () => {
+  const bad = phoneHeadsetDoc()
+  bad.calibration.setup.vr.opticsSource = 'guess'
+  assert.equal((await validateDocument(bad)).valid, false)
+  const extra = phoneHeadsetDoc()
+  extra.calibration.setup.vr.enabled = true
+  assert.equal((await validateDocument(extra)).valid, false)
+})
+
+test('a 0.4.0 document with a screen block in a vr setup is still rejected under the 0.4.0 schema', async () => {
+  // Only fields 0.4.0 knows in the vr block: the screen block alone makes it invalid there.
+  const doc = phoneHeadsetDoc()
+  doc.ovfxVersion = '0.4.0'
+  doc.calibration.setup.vr = { maxEccentricityDeg: 47 }
+  assert.equal((await validateDocument(doc)).valid, false)
+  delete doc.calibration.setup.screen
+  assert.equal((await validateDocument(doc)).valid, true)
+})
+
+test('v0.5.0 accepts extendedPass points with their device position, and a kinetic start', async () => {
+  const doc = baseDoc()
+  doc.points.push(
+    { stimulusKey: 'V4e', meridianDeg: 90, eccentricityDeg: 42, detected: true, extendedPass: true, deviceMeridianDeg: 90, deviceEccentricityDeg: 22.9 },
+    { stimulusKey: 'V4e', meridianDeg: 300, eccentricityDeg: 26, detected: true, extendedPass: true, repeat: true, startEccentricityDeg: 33.4 },
+  )
+  const { valid, errors } = await validateDocument(doc)
+  assert.equal(valid, true, JSON.stringify(errors))
+})
+
+test('v0.5.0 rejects a device position given only half', async () => {
+  const doc = baseDoc()
+  doc.points.push({ stimulusKey: 'V4e', meridianDeg: 90, eccentricityDeg: 42, detected: true, extendedPass: true, deviceMeridianDeg: 90 })
+  const { valid } = await validateDocument(doc)
+  assert.equal(valid, false)
+})
+
+test('v0.5.0 rejects a negative startEccentricityDeg and a deviceMeridianDeg of 360', async () => {
+  const neg = baseDoc()
+  neg.points[0].startEccentricityDeg = -1
+  assert.equal((await validateDocument(neg)).valid, false)
+  const wrap = baseDoc()
+  Object.assign(wrap.points[0], { deviceMeridianDeg: 360, deviceEccentricityDeg: 10 })
+  assert.equal((await validateDocument(wrap)).valid, false)
+})
+
+test('a 0.4.0 document without the new 0.5.0 fields still validates under the 0.4.0 schema', async () => {
+  const doc = baseDoc()
+  doc.ovfxVersion = '0.4.0'
+  const { valid, errors } = await validateDocument(doc)
+  assert.equal(valid, true, JSON.stringify(errors))
 })
 
 test('v0.4.0 accepts test.stimulusDurationMs and interStimulusInterval fields', async () => {

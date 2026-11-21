@@ -43,6 +43,14 @@ Reverse-DNS namespacing prevents two implementers from accidentally choosing the
 
 Per-point extension fields are common (a producer wants to record one extra thing per stimulus presentation, like a head-tracker reading). Forcing them into a nested `extensions` object on every point would bloat the file. The underscore-prefix convention is borrowed from JSON-LD's "free-form key" precedent and is unambiguous: any consumer that doesn't know what `_headPosition` means MUST preserve it on round-trip and SHOULD ignore it.
 
+## Why moved-fixation points carry a device position (v0.5.0)
+
+A screen or a phone in a headset reaches further into the field when the fixation target is moved towards one edge. The visual field moves with the eye, so such a point is recorded from where the eye was looking (`extendedPass`), like any other point. That alone loses where the stimulus was on the device, and in a headset that matters: a lens can show its rim blurred, dim or not at all, and a response that always lands at the same place on the device, whatever the gaze, says more about the device than about the eye. Alternatives considered:
+
+- **`_`-prefixed point fields.** Rejected: §6.2 says general-purpose consumers must not interpret them, and the point of the field is that any consumer can.
+- **Storing the moved fixation position instead.** Rejected: the stimulus's own device position is what a consumer needs, and recovering it from the fixation position needs the producer's projection (lens focal length, tangent vs linear).
+- **A dedicated re-check flag.** Rejected in favour of `startEccentricityDeg` plus the existing `repeat`: where a sweep started is useful for any kinetic sweep that does not start at the edge, and `repeat` already means an automatic retest.
+
 ## What was rejected for v0.1.0
 
 - **Inline trial-by-trial event log** with timestamps. Nice for research, but bloats the typical document by an order of magnitude. Likely a v0.2.0 optional addition under `extensions` first, then promoted if it sees use.
